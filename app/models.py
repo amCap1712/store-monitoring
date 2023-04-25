@@ -30,7 +30,7 @@ class StoreTimings(Base):
     __tablename__ = "store_timing"
 
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
-    store_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("store.id"))
+    store_id: Mapped[int] = mapped_column(BigInteger)
     day: Mapped[int]
     start_time_local: Mapped[time]
     end_time_local: Mapped[time]
@@ -40,7 +40,7 @@ class StoreObservation(Base):
     __tablename__ = "store_observation"
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
-    store_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("store.id"))
+    store_id: Mapped[int] = mapped_column(BigInteger)
     timestamp_utc: Mapped[datetime]
     status: Mapped[StoreStatus]
 
@@ -60,7 +60,7 @@ class ReportItem(Base):
 
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
     report_id: Mapped[UUID] = mapped_column(ForeignKey("report.id"))
-    store_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("store.id"))
+    store_id: Mapped[int] = mapped_column(BigInteger)
     uptime_last_hour: Mapped[timedelta]
     uptime_last_day: Mapped[timedelta]
     update_last_week: Mapped[timedelta]
