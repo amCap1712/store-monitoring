@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, time
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import func, Integer, ForeignKey, Identity, text, BigInteger, Text
+from sqlalchemy import func, ForeignKey, Identity, text, BigInteger, Text, UniqueConstraint
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 
 from app.database import Base
@@ -61,11 +61,14 @@ class ReportItem(Base):
     id: Mapped[int] = mapped_column(Identity(), primary_key=True)
     report_id: Mapped[UUID] = mapped_column(ForeignKey("report.id"))
     store_id: Mapped[int] = mapped_column(BigInteger)
-    uptime_last_hour: Mapped[timedelta]
-    uptime_last_day: Mapped[timedelta]
-    update_last_week: Mapped[timedelta]
-    downtime_last_hour: Mapped[timedelta]
-    downtime_last_day: Mapped[timedelta]
-    downtime_last_week: Mapped[timedelta]
+    uptime_last_hour: Mapped[Optional[timedelta]]
+    uptime_last_day: Mapped[Optional[timedelta]]
+    uptime_last_week: Mapped[Optional[timedelta]]
+    downtime_last_hour: Mapped[Optional[timedelta]]
+    downtime_last_day: Mapped[Optional[timedelta]]
+    downtime_last_week: Mapped[Optional[timedelta]]
 
     report: Mapped[Report] = relationship("Report", back_populates="items")
+
+    __table_args__ = (UniqueConstraint(report_id, store_id),)
+
