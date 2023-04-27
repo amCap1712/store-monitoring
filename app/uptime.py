@@ -9,6 +9,44 @@ def generate_query(report_id: UUID, range_: str, start: datetime, end: datetime)
     """
     Generate the report query to compute uptime for a given time period.
 
+    The giant SQL query does all of the processing of the report.
+
+    1) localize_timestamps - this CTE converts the UTC timestamp observations into the store's timezone,
+        assuming America/Chicago to be the timezone if one is not specified.
+
+    2) compute_business_hours - this CTE joins the localized timestamps with the business hours of the
+        respective stores. if business hours are not available the store is assumed to be open 24*7. we
+        use SQL OVERLAPS operator to find if the observation lies in the business hours.
+
+        We are using binary/step interpolation i.e. assuming that the status of the store doesn't change
+        until the next observation. Therefore, uptime is measured as the time between 2 observations where
+        at the least the first one has 'active' status. For the first observation, we calculate time since
+        the start of the business hour and for the last observation we calculate time till the end of the
+        business hours.
+
+    3) observations_after_first - this CTE calculates the uptime between two observations starting from
+        the first one in each business hours. we use LOCF principle that is the last observed status is
+        valid till the next observation.
+
+    4) observations_before_first - this CTE calculates the uptime till the first observation of each
+        business hours. for this there is no prior observation to carry forward, hence we assume that the
+        status of the store has been same as what was observed the first time since the start of the business
+        hours.
+
+    5) all_observations - this CTE joins all relevant observations from observations_before_first and
+        observations_after_first.
+
+    6) compute_uptime - this CTE sums the entire "uptime" in a given set of business hours on a day for each
+        store. downtime is computed as the length of the business hours - uptime.
+
+        the logic to compute "uptime" for each hours needs special casing to ensure that at most the observations
+        of the last hour are considered. there is also the issue that some store might not have any observation
+        in the past hour. more investigation and information about the data is needed to improve this case.
+
+    7) calculate_total_times - this CTE combines the total uptime for all business hours in the given time range.
+
+    Finally, this report is inserted into the database.
+
     :param report_id: the id of the report being generated
     :param range_: time range to generate the report for, can be 'hour', 'day' or 'week'
     :param start: the start of the time period to generate the report for
@@ -38,6 +76,7 @@ def generate_query(report_id: UUID, range_: str, start: datetime, end: datetime)
               FROM localize_timestamps lt
          LEFT JOIN store_timing st
                 ON lt.store_id = st.store_id
+                -- isodow starts numbering Monday from 1 but the days in our data are numbered from 0 so subtract 1
                AND st.day = EXTRACT(isodow FROM lt.local_timestamp) - 1
         ), observations_after_first AS (
                  -- this CTE applies for observations after the first one in a given business hour
@@ -150,7 +189,11 @@ def get_max_timestamp(conn: Connection) -> datetime:
 
 
 def compute(conn: Connection, report_id: UUID, reference_ts: datetime):
-    """ Compute the uptime report """
+    """ Compute the uptime report.
+
+    The report needs to be run thrice, once for each time range in the period.
+
+    """
     end_week_ts = datetime(reference_ts.year, reference_ts.month, reference_ts.day)
     start_week_ts = end_week_ts - timedelta(days=7)
     week_query = generate_query(report_id, "week", start_week_ts, end_week_ts)
