@@ -51,14 +51,20 @@ def run(report_id: UUID):
 
 def retrieve(db: Session, report_id: UUID) -> DataFrame:
     """ Retrieve the given report from the database """
-    return pd.read_sql_query(text("""
-        SELECT store_id
-             , EXTRACT(EPOCH FROM uptime_last_hour)::INT / 60 AS "uptime_last_hour(in hours)"
-             , EXTRACT(EPOCH FROM uptime_last_day)::INT / 3600 AS "uptime_last_day(in hours)"
-             , EXTRACT(EPOCH FROM uptime_last_week)::INT / 3600 AS "uptime_last_week(in hours)"
-             , EXTRACT(EPOCH FROM downtime_last_hour)::INT / 60 AS "downtime_last_hour(in minutes)"
-             , EXTRACT(EPOCH FROM downtime_last_day)::INT / 3600 AS "downtime_last_day(in hours)"
-             , EXTRACT(EPOCH FROM downtime_last_week)::INT / 3600 AS "downtime_last_week(in hours)"
-          FROM report_item
-         WHERE report_id = :report_id
-    """), db.connection(), params={"report_id": str(report_id)})
+    return pd\
+        .read_sql_query(
+            text("""
+                SELECT store_id
+                     , EXTRACT(EPOCH FROM uptime_last_hour)::INT / 60 AS "uptime_last_hour(in hours)"
+                     , EXTRACT(EPOCH FROM uptime_last_day)::INT / 3600 AS "uptime_last_day(in hours)"
+                     , EXTRACT(EPOCH FROM uptime_last_week)::INT / 3600 AS "uptime_last_week(in hours)"
+                     , EXTRACT(EPOCH FROM downtime_last_hour)::INT / 60 AS "downtime_last_hour(in minutes)"
+                     , EXTRACT(EPOCH FROM downtime_last_day)::INT / 3600 AS "downtime_last_day(in hours)"
+                     , EXTRACT(EPOCH FROM downtime_last_week)::INT / 3600 AS "downtime_last_week(in hours)"
+                  FROM report_item
+                 WHERE report_id = :report_id
+            """),
+            db.connection(),
+            params={"report_id": str(report_id)}
+        )\
+        .astype("Int64")

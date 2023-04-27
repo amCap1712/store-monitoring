@@ -10,7 +10,7 @@ def generate_query(report_id: UUID, range_: str, start: datetime, end: datetime)
     Generate the report query to compute uptime for a given time period.
 
     :param report_id: the id of the report being generated
-    :param range_: time range to generate the report for, can be 'day' or 'week'
+    :param range_: time range to generate the report for, can be 'hour', 'day' or 'week'
     :param start: the start of the time period to generate the report for
     :param end: the end of the time period to generate the report for
     :return: the SQL query that should be executed to generate the report
@@ -85,8 +85,17 @@ def generate_query(report_id: UUID, range_: str, start: datetime, end: datetime)
                  , date
                  , start_time_local
                  , end_time_local
-                 , SUM(CASE WHEN status = 'active' THEN diff ELSE INTERVAL '0' END) AS uptime
-                 , end_time_local - start_time_local - SUM(CASE WHEN status = 'active' THEN diff ELSE INTERVAL '0' END) AS downtime
+                 , CASE
+                   WHEN {range} = 'hour'
+                   THEN least(SUM(CASE WHEN status = 'active' THEN diff ELSE INTERVAL '0' END), INTERVAL '60 minutes')
+                   ELSE SUM(CASE WHEN status = 'active' THEN diff ELSE INTERVAL '0' END)
+                   END AS uptime
+                 , CASE
+                   WHEN {range} = 'hour'
+                   THEN least(end_time_local - start_time_local, INTERVAL '60 minutes')
+                      - least(SUM(CASE WHEN status = 'active' THEN diff ELSE INTERVAL '0' END), INTERVAL '60 minutes')
+                   ELSE end_time_local - start_time_local - SUM(CASE WHEN status = 'active' THEN diff ELSE INTERVAL '0' END)
+                   END AS downtime
               FROM all_observations
           GROUP BY store_id
                  , date
@@ -94,8 +103,16 @@ def generate_query(report_id: UUID, range_: str, start: datetime, end: datetime)
                  , end_time_local
         ), calculate_total_times AS (
             SELECT store_id
-                 , SUM(uptime) AS total_uptime
-                 , SUM(downtime) AS total_downtime
+                 , CASE
+                   WHEN {range} = 'hour'
+                   THEN least(SUM(uptime), INTERVAL '60 minutes')
+                   ELSE SUM(uptime)
+                   END AS total_uptime
+                 , CASE
+                   WHEN {range} = 'hour'
+                   THEN least(SUM(downtime), INTERVAL '60 minutes')
+                   ELSE SUM(downtime)
+                   END AS total_downtime
               FROM compute_uptime
              WHERE store_id IS NOT NULL
           GROUP BY store_id
@@ -114,7 +131,8 @@ def generate_query(report_id: UUID, range_: str, start: datetime, end: datetime)
         downtime_key=Identifier(f"downtime_last_{range_}"),
         report_id=Literal(report_id),
         start=Literal(start),
-        end=Literal(end)
+        end=Literal(end),
+        range=Literal(range_)
     )
 
 
